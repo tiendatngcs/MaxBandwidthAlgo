@@ -1,0 +1,15 @@
+{
+    "files.associations": {
+        "vector": "cpp",
+        "iostream": "cpp",
+        "array": "cpp",
+        "string_view": "cpp",
+        "initializer_list": "cpp",
+        "ranges": "cpp",
+        "utility": "cpp",
+        "tuple": "cpp",
+        "random": "cpp",
+        "*.tcc": "cpp",
+        "list": "cpp"
+    }
+}
