@@ -6,6 +6,7 @@ Run: algo_project.exe
 */
 
 #include <iostream>
+#include <fstream>
 #include <random>
 #include <list>
 #include <assert.h>
@@ -351,16 +352,17 @@ class VEMapper {
 private:
     int _bits;
     int _bits_mask;
+    int _maximum;
 
 public: 
-    VEMapper(int largest_v = 4999) : _bits(0) {
+    VEMapper(int largest_v = 4999) : _bits(0), _maximum(0) {
         while (largest_v > 0) {
             _bits += 1;
             largest_v = largest_v >> 1;
         }
         _bits_mask = (1 << _bits) -1;
-        printf("_bits %d\n", _bits);
-        printf("_bits_mask %d\n", _bits_mask);
+        // printf("_bits %d\n", _bits);
+        // printf("_bits_mask %d\n", _bits_mask);
         // std::cout<<std::bitset<32>(_bits_mask)<<std::endl;
         int smaller = 0;
         int larger = 1;
@@ -374,9 +376,9 @@ public:
         // printf("_bits_mask %d", _bits_mask);
     }
 
-    int bits() {
-        return _bits;
-    }
+    int bits() { return _bits; }
+
+    int maximum()  { return _maximum; }
 
     int encode(int u, int v) {
         assert(u != v);
@@ -398,6 +400,10 @@ public:
         // std::cout<<std::bitset<32>(smaller)<<std::endl;
         larger = smaller + diff;
         // std::cout<<std::bitset<32>(larger)<<std::endl;
+    }
+
+    void preview(int e) {
+        _maximum = max(_maximum, e);
     }
 };
 
@@ -460,8 +466,8 @@ Graph* create_g2(int random_seed=42) {
     srand(random_seed);
     int progress_step = 100;
     for (int v = 0; v < graph_size; v++) {
-        int adj_count = 0;
-        while (adj_count != target_adj) {
+        int adj_count = G->adj_list(v)->size();
+        while (adj_count < target_adj) {
             int w;
             do {
                 w = rand() % graph_size;
@@ -615,12 +621,35 @@ void MaxBanwidthPath_2(Graph* G, int s, int t, int* bw, int* dad) {
 
     // note, change edge heap size base of vemapper bits
     VEMapper* ve_mapper = new VEMapper();
-    MaxHeap edge_heap(1 << (ve_mapper->bits() * 2 + 1) - 1);
+    // printf("VE mapper created\n");
 
-    printf("MaxHeap max size = %d", edge_heap.max_size());
+    list<tuple<int, int>>* adj_list = NULL;
+    // loop over all edges and find maximum edge idx
+
+    int progress_step = 100;
+    for (int i = 0; i < graph_size; i++) {
+        int u = i;
+        adj_list = G->adj_list(u);
+        for (list<tuple<int, int>>::iterator it = adj_list->begin(); it != adj_list->end(); ++it) {
+            int v = get<0>(*it);
+            int e = ve_mapper->encode(u, v);
+            ve_mapper->preview(e);
+        }
+        // if (u % progress_step == 0) {
+        //     int perc = u * 100 / graph_size;
+        //     printf("[%.*s", perc, "==================================================================================================");
+        //     printf(">");
+        //     printf("%.*s]", 100 - perc, "                                                                                                     ");
+        //     printf(" %d%%\n", perc);
+        // }
+    }
+    // printf("MaxHeap max size = %d\n", ve_mapper->maximum());
+
+    MaxHeap* edge_heap = new MaxHeap(ve_mapper->maximum());
+
 
     // loop over all edges and add them to heap
-    list<tuple<int, int>>* adj_list = NULL;
+    // printf("Adding all edges to max heap!\n");
     for (int i = 0; i < graph_size; i++) {
         int u = i;
         adj_list = G->adj_list(u);
@@ -628,55 +657,60 @@ void MaxBanwidthPath_2(Graph* G, int s, int t, int* bw, int* dad) {
             int v = get<0>(*it);
             int weight = get<1>(*it);
             int e = ve_mapper->encode(u, v);
-            assert(u != v);
-            assert(G->is_adj(u, v));
-            assert(G->weight(u, v) != -1);
-            int smaller = 0; int larger = 0;
-            ve_mapper->decode(e, smaller, larger);
-            // printf("u %d, v %d\n", u, v);
-            // printf("smaller %d, larger %d\n", smaller, larger);
-            assert(smaller != larger);
-            assert(smaller == min(u, v));
-            assert(larger == max(u, v));
-            if (!edge_heap.is_in(e)) edge_heap.INSERT(e, weight);
+            if (!edge_heap->is_in(e)) edge_heap->INSERT(e, weight);
         }
+        // if (u % progress_step == 0) {
+        //     int perc = u * 100 / graph_size;
+        //     printf("[%.*s", perc, "==================================================================================================");
+        //     printf(">");
+        //     printf("%.*s]", 100 - perc, "                                                                                                     ");
+        //     printf(" %d%%\n", perc);
+        // }
     }
 
+
+    // printf("Adding edges to tree structure!\n");
     Graph* tree = new Graph(graph_size);
     DisjointSet* disjoint_set = new DisjointSet(graph_size);
-    while (edge_heap.MAXIMUM() != -1) {
-        int e = edge_heap.MAXIMUM();
+    while (edge_heap->MAXIMUM() != -1) {
+        int e = edge_heap->MAXIMUM();
         int u = 0; int v = 0;
         ve_mapper->decode(e, u, v);
-        assert(u < v);
         int u_set = disjoint_set->find_or_add(u);
         int v_set = disjoint_set->find_or_add(v);
         if (u_set != v_set) {
-            tree->add_edge(u, v, G->weight(u, v));
+            tree->add_edge(u, v, 1);
             disjoint_set->Union(u, v);
         }
-        edge_heap.DELETE(e);
+        edge_heap->DELETE(e);
     }
 
-    // // perform BFS
+    // // // perform BFS
+    // printf("Perform BFS\n");
     queue<int> Q;
-
+    int visited [GRAPH_SIZE] = {};
     Q.push(s);
     while (!Q.empty()) {
         int v = Q.front();
+        Q.pop();
         adj_list = tree->adj_list(v);
+        visited[v] = 1;
         for (list<tuple<int, int>>::iterator it = adj_list->begin(); it != adj_list->end(); ++it) {
             int w = get<0>(*it);
-            int weight = get<1>(*it);
-            dad[w] = v;
-            bw[w] = weight;
-            if (w == t) return;
-            Q.push(w);
+            // int weight = get<1>(*it);
+            if (visited[w] == 0) {
+                dad[w] = v;
+                bw[w] = G->weight(w, v);
+                if (w == t) goto RET;
+                Q.push(w);
+            }
         }
-        Q.pop();
     }
+
+    RET:
     delete tree;
     delete ve_mapper;
+    delete edge_heap;
     delete disjoint_set;
 }
 
@@ -729,12 +763,16 @@ void TEST() {
     int bw[GRAPH_SIZE];
     int dad[GRAPH_SIZE];
 
+    ofstream outfile;
+    outfile.open("outfile.txt");
+    outfile << "Output: \n";
+
     for (int i = 0; i < TEST_NUM; i++) {
         printf("Test %d\n", i);
         double total_elapsed_G1;
         Graph* G1 = create_g1(time(NULL));
         Graph* G2 = create_g2(time(NULL));
-        for (int i = 0; i < ST_PAIRS; i++) {
+        for (int j = 0; j < ST_PAIRS; j++) {
             int s = rand() % GRAPH_SIZE;
             int t = rand() % GRAPH_SIZE;
 
@@ -742,6 +780,7 @@ void TEST() {
             printf("Algo 0\n");
             {
                 // G1
+                printf("G1\n");
                 memset(bw, 0, GRAPH_SIZE * sizeof(int));
                 memset(dad, 0, GRAPH_SIZE * sizeof(int));
                 struct timeval begin, end;
@@ -753,6 +792,7 @@ void TEST() {
             }
             {
                 // G2
+                printf("G2\n");
                 memset(bw, 0, GRAPH_SIZE * sizeof(int));
                 memset(dad, 0, GRAPH_SIZE * sizeof(int));
                 struct timeval begin, end;
@@ -767,6 +807,7 @@ void TEST() {
             printf("Algo 1\n");
             {
                 // G1
+                printf("G1\n");
                 memset(bw, 0, GRAPH_SIZE * sizeof(int));
                 memset(dad, 0, GRAPH_SIZE * sizeof(int));
                 struct timeval begin, end;
@@ -778,6 +819,7 @@ void TEST() {
             }
             {
                 // G2
+                printf("G2\n");
                 memset(bw, 0, GRAPH_SIZE * sizeof(int));
                 memset(dad, 0, GRAPH_SIZE * sizeof(int));
                 struct timeval begin, end;
@@ -792,6 +834,7 @@ void TEST() {
             printf("Algo 2\n");
             {
                 // G1
+                printf("G1\n");
                 memset(bw, 0, GRAPH_SIZE * sizeof(int));
                 memset(dad, 0, GRAPH_SIZE * sizeof(int));
                 struct timeval begin, end;
@@ -803,6 +846,7 @@ void TEST() {
             }
             {
                 // G2
+                printf("G2\n");
                 memset(bw, 0, GRAPH_SIZE * sizeof(int));
                 memset(dad, 0, GRAPH_SIZE * sizeof(int));
                 struct timeval begin, end;
@@ -813,20 +857,23 @@ void TEST() {
                 runtimes2[1][i] += elapsed;
             }
         }
+
+
         delete G1;
         delete G2;
     }
+    outfile.close();
 }
 
 int main () {
     TEST();
     // my_test();
-    Graph* G1 = create_g1();
-    int bw[5000];
-    int dad[5000];
+    // Graph* G1 = create_g1();
+    // int bw[5000];
+    // int dad[5000];
     // MaxBanwidthPath_0(G1, 1, 2000, bw, dad);
     // MaxBanwidthPath_1(G1, 1, 2000, bw, dad);
-    MaxBanwidthPath_2(G1, 1, 2000, bw, dad);
+    // MaxBanwidthPath_2(G1, 1, 2000, bw, dad);
     // // G1->print_graph(10);
     // // print_arr("bandwidth", bw, 5000);
     // // print_arr("dad", dad, 5000);
