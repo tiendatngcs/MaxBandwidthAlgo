@@ -411,7 +411,7 @@ Graph* create_g1(int random_seed=42) {
     printf("Creating G1\n");
     int graph_size = GRAPH_SIZE;
     int average_vertex_deg = 6;
-    int target_num_edges = average_vertex_deg * graph_size;
+    int target_num_edges = average_vertex_deg * graph_size / 2;
     int num_edges_count = 0;
 
     Graph* G = new Graph(graph_size /*graph size*/);
@@ -627,25 +627,25 @@ void MaxBanwidthPath_2(Graph* G, int s, int t, int* bw, int* dad) {
     // loop over all edges and find maximum edge idx
 
     int progress_step = 100;
-    for (int i = 0; i < graph_size; i++) {
-        int u = i;
-        adj_list = G->adj_list(u);
-        for (list<tuple<int, int>>::iterator it = adj_list->begin(); it != adj_list->end(); ++it) {
-            int v = get<0>(*it);
-            int e = ve_mapper->encode(u, v);
-            ve_mapper->preview(e);
-        }
-        // if (u % progress_step == 0) {
-        //     int perc = u * 100 / graph_size;
-        //     printf("[%.*s", perc, "==================================================================================================");
-        //     printf(">");
-        //     printf("%.*s]", 100 - perc, "                                                                                                     ");
-        //     printf(" %d%%\n", perc);
-        // }
-    }
+    // for (int i = 0; i < graph_size; i++) {
+    //     int u = i;
+    //     adj_list = G->adj_list(u);
+    //     for (list<tuple<int, int>>::iterator it = adj_list->begin(); it != adj_list->end(); ++it) {
+    //         int v = get<0>(*it);
+    //         int e = ve_mapper->encode(u, v);
+    //         ve_mapper->preview(e);
+    //     }
+    //     // if (u % progress_step == 0) {
+    //     //     int perc = u * 100 / graph_size;
+    //     //     printf("[%.*s", perc, "==================================================================================================");
+    //     //     printf(">");
+    //     //     printf("%.*s]", 100 - perc, "                                                                                                     ");
+    //     //     printf(" %d%%\n", perc);
+    //     // }
+    // }
     // printf("MaxHeap max size = %d\n", ve_mapper->maximum());
 
-    MaxHeap* edge_heap = new MaxHeap(ve_mapper->maximum());
+    MaxHeap* edge_heap = new MaxHeap((1 << (ve_mapper->bits()*2))-1);
 
 
     // loop over all edges and add them to heap
@@ -772,6 +772,7 @@ void TEST() {
         double total_elapsed_G1;
         Graph* G1 = create_g1(time(NULL));
         Graph* G2 = create_g2(time(NULL));
+        outfile << "Test: " << i << endl;
         for (int j = 0; j < ST_PAIRS; j++) {
             int s = rand() % GRAPH_SIZE;
             int t = rand() % GRAPH_SIZE;
@@ -857,6 +858,9 @@ void TEST() {
                 runtimes2[1][i] += elapsed;
             }
         }
+        // print test out
+        outfile << "G1\t" << runtimes0[0][i]/ST_PAIRS << "\t" << runtimes1[0][i]/ST_PAIRS << "\t" << runtimes2[0][i]/ST_PAIRS <<  endl;
+        outfile << "G2\t" << runtimes0[1][i]/ST_PAIRS << "\t" << runtimes1[1][i]/ST_PAIRS << "\t" << runtimes2[1][i]/ST_PAIRS <<  endl;
 
 
         delete G1;
